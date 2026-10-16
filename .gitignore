@@ -1,6 +1,7 @@
 .vercel
 .env*
 node_modules/
+dist/
 Thumbs.db
 Desktop.ini
 .DS_Store

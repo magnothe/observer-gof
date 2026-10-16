@@ -7,7 +7,7 @@ Tudo o que está em _itálico_ é ação sua na tela. O que está em "aspas" é 
 
 ## Antes de começar (30 segundos, antes da aula)
 
-1. Duplo clique em `index.html`. Abre direto no navegador, sem servidor e sem internet.
+1. Abra **https://observer-gof.vercel.app** no navegador da TV.
 2. `F11` para tela cheia. Confira se o texto está legível do fundo da sala.
 3. Atalhos que você vai usar (não precisa procurar o mouse):
 
@@ -22,6 +22,9 @@ Tudo o que está em _itálico_ é ação sua na tela. O que está em "aspas" é 
 
 > **Dica de ensaio:** rode o jogo uma vez sozinho antes. A Fase 2 exige que você inscreva
 > a Ana e o Bruno em `promocao` — saiba de cor onde clicar.
+
+> **Plano B sem internet:** o arquivo `offline/index.html` do repositório é o jogo inteiro
+> num arquivo só. Leve num pendrive: abre com duplo clique, sem servidor e sem rede.
 
 ---
 

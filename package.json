@@ -1,0 +1,21 @@
+{
+  "name": "observer-gof",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Minigame web educativo que ensina o padrão de projeto Observer (GoF), em português, para apresentar ao vivo para uma turma",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:offline": "vite build && node scripts/empacotar-offline.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}
