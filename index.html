@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Observer — Minigame do Padrão de Projeto</title>
+<style>
+/* =========================================================================
+   TEMA / TOKENS
+   ========================================================================= */
+:root{
+  --bg:#0a0e1a;
+  --bg2:#0e1424;
+  --painel:#141b2f;
+  --painel2:#1a2340;
+  --linha:#263252;
+  --txt:#e8ecf8;
+  --muted:#93a0c0;
+  --verde:#4ade80;
+  --verde-esc:#14532d;
+  --azul:#60a5fa;
+  --azul-esc:#17305c;
+  --roxo:#a78bfa;
+  --amarelo:#fbbf24;
+  --vermelho:#f87171;
+  --raio:16px;
+  --sombra:0 10px 30px rgba(0,0,0,.45);
+  --fonte: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #15224a 0%, transparent 60%),
+    radial-gradient(1000px 500px at 100% 0%, #1b1740 0%, transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  font-family:var(--fonte);
+  /* fonte base grande: o jogo é projetado numa TV */
+  font-size:clamp(17px, 0.55vw + 13px, 23px);
+  line-height:1.45;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+h1,h2,h3,h4{margin:0;line-height:1.15}
+p{margin:.3em 0}
+small{font-size:.72em;color:var(--muted)}
+b{color:#fff}
+.muted{color:var(--muted)}
+.svgdefs{position:absolute;width:0;height:0;overflow:hidden}
+
+/* =========================================================================
+   ESTRUTURA GERAL
+   ========================================================================= */
+.app{max-width:1800px;margin:0 auto;padding:clamp(10px,1.2vw,22px) clamp(12px,1.6vw,28px) 120px}
+.topbar{
+  display:flex;align-items:center;gap:clamp(12px,2vw,28px);flex-wrap:wrap;
+  padding:clamp(10px,1vw,16px) clamp(14px,1.4vw,22px);
+  background:linear-gradient(180deg, rgba(26,35,64,.85), rgba(20,27,47,.75));
+  border:1px solid var(--linha);border-radius:var(--raio);
+  backdrop-filter:blur(6px);box-shadow:var(--sombra);
+  position:sticky;top:clamp(6px,.8vw,14px);z-index:40;
+}
+.brand{display:flex;align-items:center;gap:12px;min-width:210px}
+.brand .ic{width:40px;height:40px;color:var(--verde);flex:0 0 auto}
+.brand h1{font-size:1.25em;letter-spacing:-.02em}
+.brand p{font-size:.62em;color:var(--muted);text-transform:uppercase;letter-spacing:.14em;margin:2px 0 0}
+
+/* barra de progresso */
+.progresso{display:flex;gap:clamp(6px,.7vw,12px);flex:1 1 420px;min-width:300px}
+.etapa{
+  flex:1 1 0;background:var(--painel);border:1px solid var(--linha);
+  border-radius:12px;padding:8px 10px;cursor:pointer;text-align:left;
+  color:var(--muted);font:inherit;font-size:.72em;position:relative;overflow:hidden;
+  transition:.25s ease;
+}
+.etapa:hover{border-color:#3b4a79;color:var(--txt)}
+.etapa .n{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:1.7em;height:1.7em;border-radius:50%;background:#223058;color:#9fb0d8;
+  font-weight:700;margin-right:.5em;transition:.25s;
+}
+.etapa .rot{font-weight:600}
+.etapa.feita{border-color:var(--verde);color:#cfe9d8}
+.etapa.feita .n{background:var(--verde);color:#07240f}
+.etapa.ativa{background:linear-gradient(180deg,#1d2b52,#182243);border-color:var(--azul);color:#fff;box-shadow:0 0 0 2px rgba(96,165,250,.25)}
+.etapa.ativa .n{background:var(--azul);color:#05193c}
+.etapa.travada{opacity:.5}
+.etapa.travada::after{content:"";position:absolute;inset:0}
+.acoes{display:flex;gap:10px;align-items:center}
+
+/* =========================================================================
+   BOTÕES
+   ========================================================================= */
+.btn{
+  font:inherit;font-weight:650;color:#06142e;cursor:pointer;
+  background:linear-gradient(180deg,#8fd0ff,#60a5fa);
+  border:0;border-radius:12px;padding:.6em 1.1em;
+  box-shadow:0 6px 16px rgba(96,165,250,.28);
+  transition:transform .12s ease, filter .2s ease, box-shadow .2s;
+}
+.btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.btn:active{transform:translateY(1px) scale(.99)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;filter:grayscale(.4)}
+.btn.alto{font-size:1.05em;padding:.75em 1.4em}
+.btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--linha);box-shadow:none}
+.btn.ghost:hover{border-color:var(--azul);color:#fff}
+.btn.verde{background:linear-gradient(180deg,#86efac,#4ade80);box-shadow:0 6px 16px rgba(74,222,128,.25)}
+.btn.aviso{background:linear-gradient(180deg,#fcd34d,#fbbf24);box-shadow:0 6px 16px rgba(251,191,36,.25)}
+.btn.roxo{background:linear-gradient(180deg,#c4b5fd,#a78bfa);box-shadow:0 6px 16px rgba(167,139,250,.25)}
+.btn .mono{font-family:var(--mono);font-size:.92em}
+
+/* =========================================================================
+   CARTÕES / FASES
+   ========================================================================= */
+.fase{display:none;padding-top:clamp(14px,1.6vw,26px)}
+.fase.ativa{display:block;animation:entra .4s cubic-bezier(.2,.7,.3,1)}
+@keyframes entra{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.cab{margin-bottom:clamp(12px,1.4vw,22px)}
+.cab h2{font-size:clamp(26px,2.3vw,44px);letter-spacing:-.02em;margin:.15em 0}
+.cab .sub{color:var(--muted);max-width:68ch;font-size:.92em}
+.tag{
+  display:inline-block;font-size:.62em;font-weight:800;letter-spacing:.16em;
+  text-transform:uppercase;padding:.35em .8em;border-radius:999px;
+  background:var(--azul-esc);color:#bfdbfe;border:1px solid #2d4d8c;
+}
+.tag.ruim{background:#4a1d1d;color:#fecaca;border-color:#7f2d2d}
+.tag.bom{background:var(--verde-esc);color:#bbf7d0;border-color:#1c6b3a}
+.tag.roxa{background:#2e2458;color:#ddd6fe;border-color:#4c3f93}
+
+.card{
+  background:linear-gradient(180deg,var(--painel2),var(--painel));
+  border:1px solid var(--linha);border-radius:var(--raio);
+  padding:clamp(12px,1.2vw,20px);box-shadow:var(--sombra);
+}
+.card h3{font-size:1.02em}
+.titulo-painel{
+  display:flex;align-items:center;gap:.55em;font-size:.74em;font-weight:800;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:.8em;
+}
+.titulo-painel .ic{width:1.3em;height:1.3em;color:var(--azul)}
+
+.ic{width:24px;height:24px;display:block}
+.ic.grande{width:clamp(48px,4vw,74px);height:clamp(48px,4vw,74px)}
+
+/* loja */
+.loja{text-align:center;display:flex;flex-direction:column;align-items:center;gap:.3em;position:relative}
+.loja .ic{color:var(--amarelo);margin:0 auto}
+.loja h3{font-size:1.15em}
+.estoque{
+  margin-top:.6em;font-family:var(--mono);font-size:.78em;color:var(--muted);
+  background:#0c121f;border:1px dashed var(--linha);
+  border-radius:10px;padding:.5em .8em;
+}
+
+/* atores (clientes e novos assinantes) */
+.clientes{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:clamp(8px,.9vw,16px)}
+.ator{
+  position:relative;background:linear-gradient(180deg,#1b2440,#151c33);
+  border:1px solid var(--linha);border-radius:14px;padding:.9em .7em;
+  text-align:center;transition:.25s ease;
+}
+.ator .ic{color:var(--azul);margin:0 auto .35em}
+.ator .nome{font-weight:700;font-size:.98em}
+.ator .papel{font-size:.66em;color:var(--muted)}
+.ator.quer{border-color:#2f5b86}
+.ator.irritado{animation:treme .5s ease; border-color:var(--vermelho);background:linear-gradient(180deg,#331a22,#241420)}
+.ator.recebeu{border-color:var(--verde);box-shadow:0 0 0 2px rgba(74,222,128,.22)}
+.ator.viajando{animation:viagem 1.2s cubic-bezier(.4,0,.3,1)}
+.ator.sel{border-color:var(--amarelo);box-shadow:0 0 0 2px rgba(251,191,36,.3)}
+.ator[draggable="true"]{cursor:grab}
+.ator.novo{animation:surge .6s cubic-bezier(.2,.8,.3,1)}
+@keyframes treme{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+@keyframes viagem{0%{transform:none}45%{transform:translateY(-16px) scale(1.04)}100%{transform:none}}
+@keyframes surge{from{opacity:0;transform:scale(.7) translateY(10px)}to{opacity:1;transform:none}}
+
+/* bolha de fala */
+.bolha{
+  position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);
+  min-width:150px;max-width:260px;z-index:20;
+  background:#0f1830;border:1px solid var(--azul);color:#dce8ff;
+  padding:.5em .7em;border-radius:12px;font-size:.72em;line-height:1.3;
+  box-shadow:0 8px 20px rgba(0,0,0,.5);animation:pop .3s cubic-bezier(.2,.9,.3,1);
+}
+.bolha::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:7px solid transparent;border-top-color:var(--azul)}
+.bolha.ruim{border-color:var(--vermelho);color:#ffd9d9}
+.bolha.ruim::after{border-top-color:var(--vermelho)}
+.bolha.boa{border-color:var(--verde);color:#d6ffe4}
+.bolha.boa::after{border-top-color:var(--verde)}
+@keyframes pop{from{opacity:0;transform:translateX(-50%) translateY(8px) scale(.9)}to{opacity:1;transform:translateX(-50%)}}
+/* a bolha de fala e centralizada por translateX(-50%); os demais nao sao */
+@keyframes surgir{from{opacity:0;transform:translateY(6px) scale(.93)}to{opacity:1;transform:none}}
+
+/* partícula que voa da loja até o assinante */
+.particula{
+  position:fixed;left:0;top:0;width:38px;height:38px;margin:-19px 0 0 -19px;
+  z-index:60;pointer-events:none;display:grid;place-items:center;
+  border-radius:50%;background:radial-gradient(circle at 35% 30%,#bfe4ff,#60a5fa);
+  box-shadow:0 0 22px rgba(96,165,250,.8);
+}
+.particula svg{width:20px;height:20px;color:#06142e}
+.particula.p-promocao{background:radial-gradient(circle at 35% 30%,#fde68a,#fbbf24);box-shadow:0 0 22px rgba(251,191,36,.8)}
+.particula.p-estoque{background:radial-gradient(circle at 35% 30%,#fecaca,#f87171);box-shadow:0 0 22px rgba(248,113,113,.8)}
+.particula.p-spam{background:radial-gradient(circle at 35% 30%,#e9d5ff,#a78bfa);box-shadow:0 0 22px rgba(167,139,250,.8)}
+
+/* placar de contadores */
+.placas{display:flex;gap:clamp(10px,1.2vw,18px);flex-wrap:wrap;margin-top:clamp(12px,1.3vw,20px)}
+.placa{
+  flex:1 1 200px;display:flex;flex-direction:column;gap:.1em;
+  background:var(--painel);border:1px solid var(--linha);border-left:5px solid var(--linha);
+  border-radius:12px;padding:.7em 1em;
+}
+.placa .num{font-size:clamp(28px,2.6vw,46px);font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.placa span:nth-child(2){font-size:.78em;color:var(--muted)}
+.placa.ruim{border-left-color:var(--vermelho)}
+.placa.ruim .num{color:var(--vermelho)}
+.placa.boa{border-left-color:var(--verde)}
+.placa.boa .num{color:var(--verde)}
+.placa.pulsa{animation:pulsa .45s ease}
+@keyframes pulsa{0%{transform:scale(1)}40%{transform:scale(1.045)}100%{transform:scale(1)}}
+
+/* banner de conclusão de fase */
+.banner{
+  margin-top:clamp(14px,1.5vw,24px);display:flex;align-items:center;gap:1em;flex-wrap:wrap;
+  background:linear-gradient(90deg, rgba(74,222,128,.14), rgba(74,222,128,.03));
+  border:1px solid #2a6c45;border-left:6px solid var(--verde);
+  border-radius:14px;padding:1em 1.2em;animation:entra .4s;
+}
+.banner.aviso{background:linear-gradient(90deg, rgba(251,191,36,.14), transparent);border-color:#8a6a1b;border-left-color:var(--amarelo)}
+.banner.erro{background:linear-gradient(90deg, rgba(248,113,113,.14), transparent);border-color:#8a2b2b;border-left-color:var(--vermelho)}
+.banner .txt{flex:1 1 320px}
+.banner h4{font-size:1em;margin-bottom:.15em}
+.banner p{font-size:.82em;color:#cfd8ee}
+
+/* =========================================================================
+   FASE 1
+   ========================================================================= */
+.cena{display:grid;grid-template-columns:minmax(230px,.9fr) 2.4fr;gap:clamp(12px,1.4vw,24px);align-items:start}
+.controles{display:flex;gap:clamp(10px,1.2vw,18px);flex-wrap:wrap;margin-top:clamp(14px,1.5vw,24px)}
+
+/* =========================================================================
+   FASE 2
+   ========================================================================= */
+.f2grid{display:grid;grid-template-columns:1.05fr 1.15fr 1fr;gap:clamp(12px,1.2vw,20px);align-items:start}
+.lista-eventos{display:flex;flex-direction:column;gap:.55em;margin-top:.7em}
+.lista-eventos .btn{width:100%;text-align:left;display:flex;align-items:center;gap:.6em}
+.lista-eventos .btn .ic{width:1.1em;height:1.1em;flex:0 0 auto}
+.chips{display:flex;flex-direction:column;gap:4px;margin-top:.6em}
+.chip{
+  font:inherit;font-family:var(--mono);font-size:.62em;cursor:pointer;
+  background:#0e1830;border:1px solid var(--linha);color:var(--muted);
+  border-radius:8px;padding:.35em .5em;transition:.2s;display:flex;align-items:center;gap:.4em;
+}
+.chip::before{content:"";width:.7em;height:.7em;border-radius:3px;border:1px solid #42517d;flex:0 0 auto}
+.chip:hover{border-color:var(--azul);color:var(--txt)}
+.chip.on{background:var(--azul-esc);border-color:var(--azul);color:#cfe3ff}
+.chip.on::before{background:var(--azul);border-color:var(--azul)}
+
+/* lanes do EventManager */
+.lane{
+  background:#0f1526;border:1px dashed var(--linha);border-radius:14px;
+  padding:.6em .8em;margin-bottom:.6em;transition:.2s;min-height:84px;
+}
+.lane.over{border-color:var(--verde);background:#10251a;transform:scale(1.01)}
+.lane.disparando{animation:pulsa .5s ease;border-style:solid;border-color:var(--azul)}
+.lane .lane-cab{display:flex;align-items:center;justify-content:space-between;gap:.5em;margin-bottom:.5em}
+.lane .ev{font-family:var(--mono);font-size:.72em;color:var(--amarelo)}
+.lane .cont{font-size:.62em;color:var(--muted);font-family:var(--mono)}
+.lane .vazio{font-size:.68em;color:#64718f;font-style:italic}
+.assinantes{display:flex;flex-wrap:wrap;gap:.4em}
+.pill{
+  border:1px solid #334263;border-radius:999px;padding:.3em .3em .3em .7em;font-size:.72em;
+  animation:surgir .25s ease;
+}
+.pill .x{
+  font:inherit;font-size:.78em;cursor:pointer;border:0;border-radius:999px;
+  background:#2a1a24;color:#ffb4b4;padding:.25em .65em;
+}
+.pill .x:hover{background:var(--vermelho);color:#2a0c0c}
+
+/* console */
+#loja2{flex-direction:row;text-align:left;align-items:center;gap:.9em;padding:.7em 1em}
+#loja2 .ic.grande{width:42px;height:42px;margin:0}
+#loja2 h3{font-size:1em}
+#loja2 p{font-size:.72em;margin:0}
+#clientes2{grid-template-columns:repeat(2,1fr);gap:.5em}
+#clientes2 .ator{padding:.5em .6em;text-align:left}
+#clientes2 .ator .topo{display:flex;align-items:baseline;gap:.4em}
+#clientes2 .ator .ic{width:17px;height:17px;margin:0;align-self:center;flex:0 0 auto}
+#clientes2 .ator .nome{font-size:.86em}
+#clientes2 .ator .papel{font-size:.58em}
+#clientes2 .chips{flex-direction:row;flex-wrap:wrap;gap:3px;margin-top:.35em}
+#clientes2 .chip{font-size:.55em;padding:.24em .4em}
+.console{
+  background:#070b14;border:1px solid var(--linha);border-radius:14px;
+  padding:.7em .8em;font-family:var(--mono);font-size:.68em;line-height:1.55;
+  height:clamp(240px,34vh,470px);overflow-y:auto;scroll-behavior:smooth;
+}
+.console .ln{animation:slidein .25s ease;white-space:pre-wrap;word-break:break-word}
+@keyframes slidein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.console .pr{color:var(--verde)}
+.console .nv{color:#7f8cab}
+.console .ok{color:var(--verde)}
+.console .er{color:var(--vermelho)}
+.console .av{color:var(--amarelo)}
+.console .st{color:#fca5a5}
+.console .mt{color:var(--azul)}
+.console .ind{padding-left:1.6em}
+.console .ind2{padding-left:3.2em}
+
+.desafio{
+  margin-top:clamp(12px,1.3vw,20px);
+  background:linear-gradient(90deg, rgba(167,139,250,.14), transparent);
+  border:1px solid #4c3f93;border-left:6px solid var(--roxo);border-radius:14px;padding:1em 1.2em;
+}
+.desafio h4{font-size:1em;display:flex;align-items:center;gap:.5em}
+.desafio .status{font-family:var(--mono);font-size:.74em;margin-top:.5em;color:var(--muted)}
+.desafio .status b{color:var(--amarelo)}
+.desafio.ok{background:linear-gradient(90deg, rgba(74,222,128,.16), transparent);border-color:#2a6c45;border-left-color:var(--verde)}
+
+/* =========================================================================
+   CÓDIGO / SYNTAX HIGHLIGHT
+   ========================================================================= */
+pre.cod{
+  margin:0;background:#070b14;border:1px solid var(--linha);border-radius:14px;
+  padding:1em;font-family:var(--mono);font-size:.68em;line-height:1.6;
+  overflow:auto;max-height:clamp(240px,38vh,520px);tab-size:2;
+}
+#codNovo{min-height:clamp(220px,32vh,430px)}
+pre.cod.verde{border-color:var(--verde);box-shadow:0 0 0 2px rgba(74,222,128,.2)}
+pre.cod.pisca{animation:piscaverde 1.4s ease 2}
+@keyframes piscaverde{
+  0%,100%{border-color:var(--linha);box-shadow:none;background:#070b14}
+  50%{border-color:var(--verde);box-shadow:0 0 28px rgba(74,222,128,.35);background:#081a10}
+}
+.c-kw{color:#c792ea}
+.c-cls{color:#ffcb6b}
+.c-str{color:#c3e88d}
+.c-com{color:#637777;font-style:italic}
+.c-num{color:#f78c6c}
+.c-fn{color:#82aaff;font-weight:700}
+.caret{display:inline-block;width:.55em;height:1.05em;background:var(--verde);vertical-align:-.18em;animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* =========================================================================
+   FASE 3
+   ========================================================================= */
+.f3grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(12px,1.3vw,22px);align-items:start}
+.cod-cab{display:flex;align-items:center;justify-content:space-between;gap:.6em;margin-bottom:.6em;flex-wrap:wrap}
+.selo{
+  display:inline-flex;align-items:center;gap:.5em;font-size:.68em;font-weight:800;
+  background:var(--verde-esc);color:#bbf7d0;border:1px solid #1c6b3a;border-radius:999px;padding:.35em .9em;
+}
+.selo.destaque{animation:pulsa .6s ease 2}
+.selo .ic{width:1.1em;height:1.1em}
+.f3pool{display:flex;gap:clamp(10px,1.2vw,18px);flex-wrap:wrap;margin-top:clamp(12px,1.3vw,20px)}
+.oferta{
+  flex:1 1 280px;display:flex;align-items:center;gap:.9em;
+  background:var(--painel);border:1px solid var(--linha);border-radius:14px;padding:.9em 1em;
+}
+.oferta .ic{width:40px;height:40px;color:var(--roxo);flex:0 0 auto}
+.oferta .info{flex:1 1 auto}
+.oferta .info b{display:block;font-size:.94em}
+.oferta .info small{display:block}
+.sistema{display:grid;grid-template-columns:minmax(220px,.8fr) 2.2fr;gap:clamp(12px,1.3vw,22px);align-items:start;margin-top:clamp(12px,1.3vw,20px)}
+
+/* =========================================================================
+   FASE 4 — QUIZ (modo apresentação)
+   ========================================================================= */
+#quizWrap{max-width:1500px;margin:0 auto;text-align:center}
+.quizTop{
+  display:flex;justify-content:space-between;align-items:center;gap:1em;
+  font-size:.74em;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  font-weight:800;margin-bottom:clamp(14px,1.6vw,26px);
+}
+.quizTop .placar{color:var(--verde)}
+#qPergunta{
+  font-size:clamp(28px,3.1vw,58px);letter-spacing:-.025em;line-height:1.1;
+  margin:0 auto clamp(18px,2vw,34px);max-width:30ch;
+}
+.opcoes{display:grid;gap:clamp(8px,1vw,14px);max-width:1250px;margin:0 auto}
+.opc{
+  display:flex;align-items:center;gap:1em;text-align:left;cursor:pointer;
+  font:inherit;font-size:clamp(17px,1.35vw,30px);color:var(--txt);
+  background:linear-gradient(180deg,#1b2440,#151c33);
+  border:2px solid var(--linha);border-radius:14px;padding:.75em 1em;
+  transition:.2s ease;
+}
+.opc:hover:not(:disabled){border-color:var(--azul);transform:translateX(5px)}
+.opc:disabled{cursor:default}
+.opc .letra{
+  flex:0 0 auto;width:1.9em;height:1.9em;display:grid;place-items:center;border-radius:10px;
+  background:#223058;color:#9fb0d8;font-weight:800;font-size:.85em;
+}
+.opc.certa{border-color:var(--verde);background:linear-gradient(180deg,#143524,#0f261b)}
+.opc.certa .letra{background:var(--verde);color:#07240f}
+.opc.errada{border-color:var(--vermelho);background:linear-gradient(180deg,#331a22,#241420);opacity:.95}
+.opc.errada .letra{background:var(--vermelho);color:#2a0c0c}
+.opc.apagada{opacity:.4}
+.explic{
+  max-width:1250px;margin:clamp(16px,1.8vw,28px) auto 0;text-align:left;
+  background:linear-gradient(90deg, rgba(96,165,250,.12), transparent);
+  border:1px solid #2d4d8c;border-left:6px solid var(--azul);border-radius:14px;
+  padding:1em 1.2em;font-size:clamp(15px,1.05vw,24px);animation:entra .35s;
+}
+.explic h4{font-size:1em;margin-bottom:.25em;display:flex;align-items:center;gap:.5em}
+.explic.ok{background:linear-gradient(90deg, rgba(74,222,128,.12), transparent);border-color:#2a6c45;border-left-color:var(--verde)}
+.explic.no{background:linear-gradient(90deg, rgba(248,113,113,.12), transparent);border-color:#8a2b2b;border-left-color:var(--vermelho)}
+.quizNav{margin-top:clamp(16px,1.8vw,28px);display:flex;justify-content:center;gap:1em;flex-wrap:wrap}
+
+/* tela final */
+#fimWrap{max-width:1500px;margin:0 auto}
+.placarFinal{text-align:center;margin-bottom:clamp(18px,2vw,34px)}
+.placarFinal .big{font-size:clamp(56px,7vw,140px);font-weight:900;line-height:.95;letter-spacing:-.04em;
+  background:linear-gradient(180deg,#bbf7d0,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+.placarFinal .de{font-size:.9em;color:var(--muted)}
+.definicao{
+  background:linear-gradient(180deg,var(--painel2),var(--painel));
+  border:1px solid var(--linha);border-left:6px solid var(--roxo);border-radius:var(--raio);
+  padding:clamp(14px,1.4vw,24px);margin-bottom:clamp(14px,1.5vw,24px);
+}
+.definicao blockquote{margin:.4em 0 0;font-size:clamp(18px,1.5vw,30px);line-height:1.35;color:#fff}
+.diagrama{background:#070b14;border:1px solid var(--linha);border-radius:var(--raio);padding:clamp(10px,1vw,18px)}
+.diagrama > svg{width:100%;max-width:1150px;height:auto;display:block;margin:0 auto}
+
+/* =========================================================================
+   RODAPÉ FIXO / FAB / DRAWER / TOAST
+   ========================================================================= */
+.rodape{
+  position:fixed;left:0;right:0;bottom:0;z-index:45;
+  display:flex;align-items:center;justify-content:center;gap:clamp(10px,1.4vw,24px);
+  padding:.7em clamp(12px,1.6vw,28px);
+  background:linear-gradient(180deg, rgba(10,14,26,.2), rgba(10,14,26,.96) 55%);
+  backdrop-filter:blur(8px);border-top:1px solid var(--linha);
+}
+.rodape .dica{font-size:.68em;color:var(--muted);text-align:center}
+kbd{
+  font-family:var(--mono);font-size:.9em;background:#1b2440;border:1px solid var(--linha);
+  border-bottom-width:3px;border-radius:6px;padding:.1em .45em;color:#cfd8ee;
+}
+.fab{
+  position:fixed;right:clamp(14px,1.6vw,28px);bottom:clamp(74px,7vw,104px);z-index:50;
+  display:flex;align-items:center;gap:.55em;cursor:pointer;font:inherit;font-weight:700;font-size:.82em;
+  color:#06142e;background:linear-gradient(180deg,#fde68a,#fbbf24);border:0;border-radius:999px;
+  padding:.7em 1.2em;box-shadow:0 10px 26px rgba(251,191,36,.35);
+}
+.fab:hover{filter:brightness(1.07);transform:translateY(-2px)}
+.fab .ic{width:1.15em;height:1.15em}
+.drawer{
+  position:fixed;top:0;right:0;height:100vh;width:min(880px,94vw);z-index:70;
+  background:linear-gradient(180deg,#101728,#0a0e1a);border-left:1px solid var(--linha);
+  box-shadow:-20px 0 60px rgba(0,0,0,.6);
+  transform:translateX(104%);transition:transform .38s cubic-bezier(.3,.8,.2,1);
+  display:flex;flex-direction:column;padding:clamp(12px,1.3vw,22px);
+}
+.drawer.aberto{transform:none}
+.drawer-cab{display:flex;align-items:center;justify-content:space-between;gap:1em;margin-bottom:.8em}
+.drawer-cab h3{font-size:1.05em}
+.abas{display:flex;gap:.4em;flex-wrap:wrap;margin-bottom:.7em}
+.aba{
+  font:inherit;font-family:var(--mono);font-size:.66em;cursor:pointer;
+  background:#121b30;border:1px solid var(--linha);color:var(--muted);
+  border-radius:10px;padding:.45em .8em;transition:.2s;
+}
+.aba:hover{color:var(--txt);border-color:#3b4a79}
+.aba.on{background:var(--azul-esc);border-color:var(--azul);color:#dbeafe}
+#codBox{flex:1 1 auto;max-height:none;overflow:auto}
+.backdrop{position:fixed;inset:0;background:rgba(4,7,14,.6);z-index:65;opacity:0;pointer-events:none;transition:opacity .3s}
+.backdrop.on{opacity:1;pointer-events:auto}
+
+#toasts{position:fixed;top:clamp(80px,8vw,120px);left:50%;transform:translateX(-50%);z-index:90;
+  display:flex;flex-direction:column;gap:.5em;align-items:center;pointer-events:none}
+.toast{
+  background:#172039;border:1px solid var(--azul);color:#e6eeff;border-radius:12px;
+  padding:.6em 1.1em;font-size:.8em;box-shadow:var(--sombra);animation:surgir .25s ease;
+}
+.toast.ruim{border-color:var(--vermelho)}
+.toast.boa{border-color:var(--verde)}
+
+/* =========================================================================
+   RESPONSIVO
+   ========================================================================= */
+@media (max-width:1150px){
+  .f2grid{grid-template-columns:1fr 1fr}
+  .f2grid .col-console{grid-column:1 / -1}
+  .f3grid{grid-template-columns:1fr}
+  .sistema{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .cena{grid-template-columns:1fr}
+  .f2grid{grid-template-columns:1fr}
+  .topbar{position:static}
+  .progresso{order:3;flex-basis:100%}
+  .rodape .dica{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<!-- ======================= ÍCONES (SVG, sem emoji) ======================= -->
+<svg class="svgdefs" aria-hidden="true">
+  <defs>
+    <g id="g-stroke"></g>
+  </defs>
+  <symbol id="i-loja" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 10h16v10H4z"/><path d="M2.2 10 4.4 4.6h15.2L21.8 10"/><path d="M9.5 20v-5.5h5V20"/>
+  </symbol>
+  <symbol id="i-pessoa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="8" r="3.4"/><path d="M4.6 20c0-4.1 3.3-6 7.4-6s7.4 1.9 7.4 6"/>
+  </symbol>
+  <symbol id="i-led" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.5" y="4" width="19" height="12" rx="1.8"/><path d="M8 20.5h8M12 16v4.5"/><path d="M5.6 10h3.2M11 10h7.4"/>
+  </symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="8.5" width="16" height="11" rx="3.4"/><circle cx="9.6" cy="14" r="1.25"/><circle cx="14.4" cy="14" r="1.25"/>
+    <path d="M12 8.5V5.6"/><circle cx="12" cy="4.1" r="1.4"/><path d="M2.2 13.5v2.5M21.8 13.5v2.5"/>
+  </symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="5.5" width="18" height="13" rx="2.2"/><path d="M3.6 7.2 12 13l8.4-5.8"/>
+  </symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 16.4v-4.6a6 6 0 1 1 12 0v4.6l1.6 2.4H4.4z"/><path d="M9.8 19.2a2.3 2.3 0 0 0 4.4 0"/>
+  </symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.5 13.3 13 20.8a2 2 0 0 1-2.8 0l-7-7V3.4h10.4l6.9 6.9a2 2 0 0 1 0 3z"/><circle cx="7.6" cy="7.6" r="1.4"/>
+  </symbol>
+  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.5 7.5 12 3.2 3.5 7.5v9L12 20.8l8.5-4.3z"/><path d="M3.5 7.5 12 11.8l8.5-4.3M12 11.8v9"/>
+  </symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3.6 1.8 20.4h20.4z"/><path d="M12 9.5v5M12 17.4h.01"/>
+  </symbol>
+  <symbol id="i-cod" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.5 17 3 12l5.5-5M15.5 7 21 12l-5.5 5"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 12.6 9.2 18 20 6.6"/>
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 6l12 12M18 6 6 18"/>
+  </symbol>
+  <symbol id="i-lista" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.5 6.5h12M8.5 12h12M8.5 17.5h12"/><circle cx="4.2" cy="6.5" r="1.3"/><circle cx="4.2" cy="12" r="1.3"/><circle cx="4.2" cy="17.5" r="1.3"/>
+  </symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.5" y="4" width="19" height="16" rx="2.2"/><path d="M6.5 10l2.6 2.4-2.6 2.4M11.6 15.2h5.4"/>
+  </symbol>
+</svg>
+
+<div class="app">
+
+  <!-- ============================ TOPO ============================ -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="ic"><use href="#i-bell"/></svg>
+      <div>
+        <h1>Observer</h1>
+        <p>padrão comportamental &middot; GoF</p>
+      </div>
+    </div>
+    <nav class="progresso" id="progresso" aria-label="Progresso das fases"></nav>
+    <div class="acoes">
+      <button class="btn ghost" id="btnReiniciar">Reiniciar</button>
+    </div>
+  </header>
+
+  <main id="palco">
+
+    <!-- ========================================================= FASE 1 -->
+    <section class="fase ativa" data-fase="1">
+      <div class="cab">
+        <span class="tag ruim">Fase 1 &middot; o problema</span>
+        <h2>Um mundo sem Observer</h2>
+        <p class="sub">A <b>Loja</b> vai receber o <b>iPhone 17</b>: Ana e Bruno querem; Carlos e Duda não.
+           Sem um mecanismo de inscrição só existem dois caminhos, e os dois são ruins. Experimente.</p>
+      </div>
+
+      <div class="cena">
+        <div class="card loja" id="loja1">
+          <svg class="ic grande"><use href="#i-loja"/></svg>
+          <h3>Loja TechStore</h3>
+          <p class="muted">a publicadora &mdash; quem gera o evento</p>
+          <div class="estoque" id="estoque1">iPhone 17: <b>ainda não chegou</b></div>
+        </div>
+        <div>
+          <div class="titulo-painel"><svg class="ic"><use href="#i-pessoa"/></svg> os 4 clientes</div>
+          <div class="clientes" id="clientes1"></div>
+        </div>
+      </div>
+
+      <div class="controles">
+        <button class="btn alto" id="btnViagem">Cliente vai até a loja</button>
+        <button class="btn alto aviso" id="btnEmailTodos">Loja manda e-mail para TODOS</button>
+      </div>
+
+      <div class="placas">
+        <div class="placa ruim" id="placaViagens">
+          <span class="num" id="numViagens">0</span>
+          <span>viagens perdidas &mdash; o cliente fica consultando (<i>polling</i>)</span>
+          <small>precisa de 5 para liberar a Fase 2</small>
+        </div>
+        <div class="placa ruim" id="placaSpam">
+          <span class="num" id="numSpam">0</span>
+          <span>mensagens de spam &mdash; a loja avisa quem não tem interesse</span>
+          <small>precisa de 1 envio para liberar a Fase 2</small>
+        </div>
+      </div>
+
+      <div class="banner" id="banner1" hidden>
+        <div class="txt">
+          <h4>É esse o conflito.</h4>
+          <p>Se o <b>cliente</b> fica consultando, ele desperdiça viagens. Se a <b>loja</b> avisa todo mundo, ela gera spam.
+             O Observer resolve invertendo a responsabilidade: quem tem interesse se <b>inscreve</b>, e a loja <b>notifica</b> só a lista de inscritos.</p>
+        </div>
+        <button class="btn alto verde" id="btnIrF2">Ver a solução &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ========================================================= FASE 2 -->
+    <section class="fase" data-fase="2">
+      <div class="cab">
+        <span class="tag">Fase 2 &middot; o mecanismo de assinatura</span>
+        <h2>Inscrever, notificar, cancelar inscrição</h2>
+        <p class="sub">Arraste um cliente para dentro de um <b>evento</b> (ou clique nos chips) para <b>inscrever</b> esse <b>assinante</b>
+           na lista do <code>EventManager</code>. Depois faça a <b>publicadora</b> notificar e acompanhe as chamadas no Console.</p>
+      </div>
+
+      <div class="f2grid">
+        <!-- coluna 1: publicadora + clientes -->
+        <div>
+          <div class="card loja" id="loja2">
+            <svg class="ic grande"><use href="#i-loja"/></svg>
+            <h3>Loja TechStore</h3>
+            <p class="muted">a publicadora</p>
+          </div>
+          <div class="lista-eventos">
+            <button class="btn" data-notify="chegou-produto"><svg class="ic"><use href="#i-box"/></svg><span class="mono">novoProduto("iPhone 17")</span></button>
+            <button class="btn aviso" data-notify="promocao"><svg class="ic"><use href="#i-tag"/></svg><span class="mono">lancarPromocao("iPhone 17 &minus;20%")</span></button>
+            <button class="btn roxo" data-notify="estoque-acabando"><svg class="ic"><use href="#i-alerta"/></svg><span class="mono">estoqueAcabando("iPhone 17")</span></button>
+          </div>
+          <div style="margin-top:1em" class="titulo-painel"><svg class="ic"><use href="#i-pessoa"/></svg> clientes disponíveis</div>
+          <div class="clientes" id="clientes2"></div>
+        </div>
+
+        <!-- coluna 2: EventManager -->
+        <div class="card">
+          <div class="titulo-painel"><svg class="ic"><use href="#i-lista"/></svg> EventManager &mdash; lista de assinantes</div>
+          <div id="lanes"></div>
+          <p class="muted" style="font-size:.7em">Cada faixa é uma chave de <code>this.listeners</code>. A lista é <b>dinâmica</b>:
+             dá para inscrever e cancelar inscrição em tempo de execução, sem tocar na classe <code>Loja</code>.</p>
+        </div>
+
+        <!-- coluna 3: console -->
+        <div class="card col-console">
+          <div class="titulo-painel"><svg class="ic"><use href="#i-terminal"/></svg> Console &mdash; chamadas reais</div>
+          <div class="console" id="console2"></div>
+          <div style="margin-top:.7em;display:flex;gap:.5em;flex-wrap:wrap">
+            <button class="btn ghost" id="btnLimparConsole" style="font-size:.78em">Limpar console</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="desafio" id="desafio2">
+        <h4><svg class="ic" style="width:1.1em;height:1.1em;color:var(--roxo)"><use href="#i-check"/></svg> Desafio da fase</h4>
+        <p style="font-size:.86em">Faça <b>só a Ana e o Bruno</b> receberem a <b>promoção</b>, sem que o <b>Carlos</b> receba.
+           Depois clique em <code>lancarPromocao(...)</code> para confirmar.</p>
+        <div class="status" id="statusDesafio"></div>
+      </div>
+
+      <div class="banner" id="banner2" hidden>
+        <div class="txt">
+          <h4>Desafio concluído.</h4>
+          <p>A loja não decidiu nada: ela só chamou <code>notify("promocao", ...)</code>. Quem definiu o destino foi a
+             <b>lista de assinantes</b>. Zero viagem perdida, zero spam.</p>
+        </div>
+        <button class="btn alto verde" id="btnIrF3">E por que isso é bom? &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ========================================================= FASE 3 -->
+    <section class="fase" data-fase="3">
+      <div class="cab">
+        <span class="tag bom">Fase 3 &middot; princípio Aberto/Fechado</span>
+        <h2>Assinantes novos, publicadora intacta</h2>
+        <p class="sub">Dois assinantes que não existiam quando a <code>Loja</code> foi escrita: um <b>Painel de LED</b> e um <b>Bot do WhatsApp</b>.
+           Basta cada um <b>implementar a interface Assinante</b> (ter um método <code>update</code>). Observe o contador de linhas alteradas na <code>Loja</code>.</p>
+      </div>
+
+      <div class="f3grid">
+        <div class="card">
+          <div class="cod-cab">
+            <div class="titulo-painel" style="margin:0"><svg class="ic"><use href="#i-loja"/></svg> class Loja &mdash; a publicadora</div>
+            <span class="selo" id="seloLoja"><svg class="ic"><use href="#i-check"/></svg> <span id="seloTxt">0 linhas alteradas</span></span>
+          </div>
+          <pre class="cod" id="codLoja"></pre>
+        </div>
+        <div class="card">
+          <div class="cod-cab">
+            <div class="titulo-painel" style="margin:0"><svg class="ic"><use href="#i-cod"/></svg> <span id="tituloNovo">novo assinante concreto</span></div>
+          </div>
+          <pre class="cod" id="codNovo"><span class="muted">Clique em "implementar interface Assinante" abaixo e o código aparece aqui, sendo escrito.</span></pre>
+        </div>
+      </div>
+
+      <div class="f3pool">
+        <div class="oferta" id="ofertaLed">
+          <svg class="ic"><use href="#i-led"/></svg>
+          <div class="info"><b>Painel de LED da loja</b><small>mostra o aviso no letreiro da vitrine</small></div>
+          <button class="btn roxo" data-implementa="led">implementar interface Assinante</button>
+        </div>
+        <div class="oferta" id="ofertaBot">
+          <svg class="ic"><use href="#i-bot"/></svg>
+          <div class="info"><b>Bot do WhatsApp</b><small>manda mensagem no grupo de clientes</small></div>
+          <button class="btn roxo" data-implementa="bot">implementar interface Assinante</button>
+        </div>
+      </div>
+
+      <div class="sistema">
+        <div class="card loja" id="loja3">
+          <svg class="ic grande"><use href="#i-loja"/></svg>
+          <h3>Loja TechStore</h3>
+          <p class="muted">a publicadora &mdash; inalterada</p>
+          <button class="btn verde" style="margin-top:.8em;width:100%" id="btnNotificarF3">
+            <span class="mono">novoProduto("PlayStation 6")</span>
+          </button>
+        </div>
+        <div>
+          <div class="titulo-painel"><svg class="ic"><use href="#i-lista"/></svg>
+            assinantes inscritos em <span class="mono" style="color:var(--amarelo)">"chegou-produto"</span>
+            &mdash; <span id="contaAssinantes3">2</span>
+          </div>
+          <div class="clientes" id="assinantes3"></div>
+        </div>
+      </div>
+
+      <div class="banner" id="banner3" hidden>
+        <div class="txt">
+          <h4>Princípio Aberto/Fechado, na prática.</h4>
+          <p>A classe <code>Loja</code> ficou <b>aberta para extensão</b> (ganhou dois tipos novos de assinante) e
+             <b>fechada para modificação</b> (<b>0 linhas alteradas</b>). Ela nunca soube com quem estava falando:
+             só chamou <code>update()</code> na interface <code>Assinante</code>.</p>
+        </div>
+        <button class="btn alto verde" id="btnIrF4">Ir para o quiz &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ========================================================= FASE 4 -->
+    <section class="fase" data-fase="4">
+      <div id="quizWrap">
+        <div class="quizTop">
+          <span id="qContador">Pergunta 1 de 6</span>
+          <span class="placar" id="qPlacar">Acertos: 0</span>
+        </div>
+        <h2 id="qPergunta"></h2>
+        <div class="opcoes" id="qOpcoes"></div>
+        <div class="explic" id="qExplic" hidden></div>
+        <div class="quizNav">
+          <button class="btn alto verde" id="btnProxQ" hidden>Próxima pergunta &rarr;</button>
+        </div>
+        <p class="muted" style="font-size:.7em;margin-top:1.4em">
+          A turma responde em voz alta &mdash; depois clique. Atalhos: <kbd>1</kbd>&hellip;<kbd>4</kbd> para responder, <kbd>&rarr;</kbd> para avançar.
+        </p>
+      </div>
+
+      <div id="fimWrap" hidden>
+        <div class="placarFinal">
+          <div class="big" id="placarBig">0/6</div>
+          <div class="de" id="placarMsg"></div>
+          <div class="quizNav">
+            <button class="btn alto verde" id="btnJogarDeNovo">Jogar de novo</button>
+            <button class="btn alto ghost" id="btnRefazerQuiz">Refazer só o quiz</button>
+          </div>
+        </div>
+
+        <div class="definicao">
+          <span class="tag roxa">definição formal</span>
+          <blockquote>
+            O <b>Observer</b> é um padrão de projeto comportamental que permite definir um <b>mecanismo de inscrição</b>
+            para notificar múltiplos objetos sobre quaisquer eventos que aconteçam com o objeto que eles estão observando.
+          </blockquote>
+          <p class="muted" style="font-size:.8em;margin-top:.7em">
+            Vocabulário: a <b>publicadora</b> mantém a lista de <b>assinantes</b>; quem quiser receber avisos chama <b>inscrever</b>
+            e pode <b>cancelar inscrição</b> a qualquer momento; quando o <b>evento</b> acontece, a publicadora <b>notifica</b> a lista
+            chamando <b>update</b> em cada assinante.
+          </p>
+        </div>
+
+        <div class="diagrama">
+          <div class="titulo-painel"><svg class="ic"><use href="#i-cod"/></svg> estrutura do padrão</div>
+          <!-- Diagrama desenhado em SVG: publicadora -> interface assinante -> assinantes concretos -->
+          <svg viewBox="0 0 1060 440" role="img" aria-label="Diagrama: Loja publicadora notifica a interface Assinante, implementada por ClienteEmail, PainelLED e BotWhatsApp">
+            <defs>
+              <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#60a5fa"/>
+              </marker>
+              <marker id="heranca" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
+                <path d="M0 0 L11 6 L0 12 z" fill="#0a0e1a" stroke="#a78bfa" stroke-width="1.6"/>
+              </marker>
+            </defs>
+
+            <!-- publicadora -->
+            <g>
+              <rect x="20" y="130" width="300" height="180" rx="12" fill="#141b2f" stroke="#fbbf24" stroke-width="2"/>
+              <rect x="20" y="130" width="300" height="42" rx="12" fill="#2a2110" stroke="#fbbf24" stroke-width="2"/>
+              <text x="170" y="158" text-anchor="middle" fill="#fcd34d" font-family="ui-monospace,Consolas,monospace" font-size="19" font-weight="700">Loja  (publicadora)</text>
+              <text x="38" y="198" fill="#93a0c0" font-family="ui-monospace,Consolas,monospace" font-size="15">- events: EventManager</text>
+              <line x1="20" y1="212" x2="320" y2="212" stroke="#263252" stroke-width="1.5"/>
+              <text x="38" y="238" fill="#e8ecf8" font-family="ui-monospace,Consolas,monospace" font-size="15">+ inscrever(evento, a)</text>
+              <text x="38" y="263" fill="#e8ecf8" font-family="ui-monospace,Consolas,monospace" font-size="15">+ cancelarInscricao(evento, a)</text>
+              <text x="38" y="288" fill="#4ade80" font-family="ui-monospace,Consolas,monospace" font-size="15">+ notificar(evento, dados)</text>
+            </g>
+
+            <!-- seta publicadora -> interface -->
+            <line x1="320" y1="220" x2="430" y2="220" stroke="#60a5fa" stroke-width="2.5" marker-end="url(#seta)"/>
+            <text x="375" y="208" text-anchor="middle" fill="#60a5fa" font-family="ui-sans-serif,system-ui" font-size="15" font-weight="700">notifica</text>
+            <text x="375" y="243" text-anchor="middle" fill="#93a0c0" font-family="ui-monospace,Consolas,monospace" font-size="14">0..*</text>
+
+            <!-- interface -->
+            <g>
+              <rect x="432" y="170" width="276" height="100" rx="12" fill="#141b2f" stroke="#a78bfa" stroke-width="2" stroke-dasharray="7 5"/>
+              <text x="570" y="200" text-anchor="middle" fill="#ddd6fe" font-family="ui-monospace,Consolas,monospace" font-size="15">&#171;interface&#187;</text>
+              <text x="570" y="224" text-anchor="middle" fill="#fff" font-family="ui-monospace,Consolas,monospace" font-size="19" font-weight="700">Assinante</text>
+              <line x1="432" y1="236" x2="708" y2="236" stroke="#263252" stroke-width="1.5"/>
+              <text x="570" y="258" text-anchor="middle" fill="#4ade80" font-family="ui-monospace,Consolas,monospace" font-size="15" font-weight="700">+ update(evento, dados)</text>
+            </g>
+
+            <!-- assinantes concretos -->
+            <g font-family="ui-monospace,Consolas,monospace">
+              <rect x="818" y="40" width="222" height="76" rx="11" fill="#141b2f" stroke="#60a5fa" stroke-width="2"/>
+              <text x="929" y="72" text-anchor="middle" fill="#bfdbfe" font-size="17" font-weight="700">ClienteEmail</text>
+              <text x="929" y="97" text-anchor="middle" fill="#93a0c0" font-size="14">+ update(...)</text>
+
+              <rect x="818" y="182" width="222" height="76" rx="11" fill="#141b2f" stroke="#60a5fa" stroke-width="2"/>
+              <text x="929" y="214" text-anchor="middle" fill="#bfdbfe" font-size="17" font-weight="700">PainelLED</text>
+              <text x="929" y="239" text-anchor="middle" fill="#93a0c0" font-size="14">+ update(...)</text>
+
+              <rect x="818" y="324" width="222" height="76" rx="11" fill="#141b2f" stroke="#60a5fa" stroke-width="2"/>
+              <text x="929" y="356" text-anchor="middle" fill="#bfdbfe" font-size="17" font-weight="700">BotWhatsApp</text>
+              <text x="929" y="381" text-anchor="middle" fill="#93a0c0" font-size="14">+ update(...)</text>
+            </g>
+
+            <!-- heranças: concretos -> interface -->
+            <path d="M818 78 L768 78 L768 220 L720 220" fill="none" stroke="#a78bfa" stroke-width="2.2" marker-end="url(#heranca)"/>
+            <path d="M818 220 L720 220" fill="none" stroke="#a78bfa" stroke-width="2.2" marker-end="url(#heranca)"/>
+            <path d="M818 362 L768 362 L768 220 L720 220" fill="none" stroke="#a78bfa" stroke-width="2.2" marker-end="url(#heranca)"/>
+
+            <text x="20" y="352" fill="#93a0c0" font-family="ui-sans-serif,system-ui" font-size="15">a publicadora conhece só a interface &mdash;</text>
+            <text x="20" y="376" fill="#93a0c0" font-family="ui-sans-serif,system-ui" font-size="15">nunca as classes concretas (desacoplamento)</text>
+            <text x="20" y="414" fill="#f87171" font-family="ui-sans-serif,system-ui" font-size="15">desvantagem: a ordem de notificação é aleatória</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============================ RODAPÉ FIXO ============================ -->
+<footer class="rodape">
+  <button class="btn ghost" id="btnAnt">&larr; Fase anterior</button>
+  <span class="dica">navegue com <kbd>&larr;</kbd> <kbd>&rarr;</kbd> &middot; <kbd>C</kbd> abre o código &middot; <kbd>R</kbd> reinicia</span>
+  <button class="btn" id="btnProx">Próxima fase &rarr;</button>
+</footer>
+
+<!-- ============================ PAINEL DE CÓDIGO ============================ -->
+<button class="fab" id="btnCodigo"><svg class="ic"><use href="#i-cod"/></svg> Ver o código</button>
+<div class="backdrop" id="backdrop"></div>
+<aside class="drawer" id="painelCodigo" aria-hidden="true">
+  <div class="drawer-cab">
+    <h3>O código real do padrão</h3>
+    <button class="btn ghost" id="btnFecharCod">Fechar (Esc)</button>
+  </div>
+  <div class="abas" id="abasCod"></div>
+  <pre class="cod" id="codBox"></pre>
+  <p class="muted" style="font-size:.66em;margin-top:.6em">
+    Este texto é extraído em tempo de execução das próprias classes do jogo (<code>EventManager.toString()</code> etc.) &mdash;
+    é exatamente o código que está rodando nesta página.
+  </p>
+</aside>
+
+<div id="toasts"></div>
+
+<!-- trecho de uso, exibido na aba "Como usar" -->
+<script type="text/plain" id="src-uso">
+// ----------------------------------------------------------------------
+// COMO O PADRÃO É USADO (o "cliente" do padrão)
+// ----------------------------------------------------------------------
+
+// 1) A publicadora concreta
+const loja = new Loja("TechStore");
+
+// 2) Os assinantes concretos (cada um faz algo diferente no update)
+const ana      = new ClienteEmail("Ana", "ana");
+const bruno    = new ClienteEmail("Bruno", "bruno");
+const painel   = new PainelLED("Painel de LED", "led");
+const bot      = new BotWhatsApp("Bot do WhatsApp", "bot");
+
+// 3) INSCREVER: cada um escolhe o evento que lhe interessa
+loja.inscrever("promocao",        ana);
+loja.inscrever("promocao",        bruno);
+loja.inscrever("chegou-produto",  painel);
+loja.inscrever("chegou-produto",  bot);
+
+// 4) NOTIFICAR: a loja dispara o evento e NÃO sabe quem vai receber.
+//    Internamente ela faz events.notify("promocao", "iPhone 17 -20%"),
+//    que percorre a lista e chama update() em cada assinante.
+loja.lancarPromocao("iPhone 17 -20%");
+//  -> ana.update("promocao", "iPhone 17 -20%")
+//  -> bruno.update("promocao", "iPhone 17 -20%")
+//     (o painel e o bot NÃO recebem: eles não assinaram esse evento)
+
+// 5) CANCELAR INSCRIÇÃO: a lista é dinâmica, em tempo de execução
+loja.cancelarInscricao("promocao", bruno);
+
+// Repare no que NÃO existe aqui:
+//  - a Loja não tem nenhum "if" para decidir quem avisar;
+//  - a Loja não importa ClienteEmail, PainelLED nem BotWhatsApp;
+//  - para adicionar um assinante novo, nada na Loja muda (Aberto/Fechado).
+</script>
+
+<script>
+"use strict";
+
+/* ==========================================================================
+   =========================  O PADRÃO OBSERVER  ============================
+   ==========================================================================
+   As quatro classes abaixo são o padrão em si. Os nomes seguem o
+   Refactoring Guru (pt-br): EventManager, Loja (publicadora concreta),
+   Assinante (interface) e os assinantes concretos.
+
+   Nada aqui conhece a interface gráfica: os assinantes concretos apenas
+   chamam a função auxiliar `entregar()`, que é a camada de apresentação.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   1) EventManager — gerencia a LISTA DE ASSINANTES.
+      A publicadora delega para ele toda a parte de inscrição. Isso evita
+      duplicar esse código em cada publicadora do sistema.
+   ------------------------------------------------------------------------- */
+class EventManager {
+  constructor() {
+    // Mapa: tipo de evento -> array de assinantes inscritos nesse evento.
+    // Ex.: { "promocao": [ana, bruno], "chegou-produto": [painelLED] }
+    this.listeners = {};
+  }
+
+  // INSCREVER: coloca um assinante na lista de um tipo de evento.
+  subscribe(eventType, listener) {
+    if (!this.listeners[eventType]) this.listeners[eventType] = [];
+    // evita inscrição duplicada do mesmo assinante no mesmo evento
+    if (!this.listeners[eventType].includes(listener)) {
+      this.listeners[eventType].push(listener);
+    }
+  }
+
+  // CANCELAR INSCRIÇÃO: tira o assinante da lista. Pode ser feito a
+  // qualquer momento — a lista é dinâmica, em tempo de execução.
+  unsubscribe(eventType, listener) {
+    const lista = this.listeners[eventType] || [];
+    const i = lista.indexOf(listener);
+    if (i >= 0) lista.splice(i, 1);
+  }
+
+  // NOTIFICAR: o coração do padrão. Percorre a lista do evento e chama
+  // update() em cada assinante. O EventManager não sabe (e não precisa
+  // saber) de que classe cada assinante é — só que ele tem update().
+  // ATENÇÃO: a ordem desse laço é a ordem de inserção; o padrão NÃO
+  // garante ordem de notificação. Não dependa dela.
+  notify(eventType, data) {
+    const lista = this.listeners[eventType] || [];
+    for (const listener of lista) {
+      listener.update(eventType, data);
+    }
+    return lista.slice(); // devolve quem foi notificado (só para a UI)
+  }
+
+  // Consulta auxiliar usada pela tela para desenhar a lista.
+  assinantesDe(eventType) {
+    return (this.listeners[eventType] || []).slice();
+  }
+}
+
+/* -------------------------------------------------------------------------
+   2) Loja — a PUBLICADORA concreta.
+      Ela gera os eventos. Repare: ela não tem nenhum "if" sobre clientes,
+      não importa nenhuma classe de assinante e não guarda e-mails. Tudo o
+      que ela faz é avisar o EventManager que algo aconteceu.
+   ------------------------------------------------------------------------- */
+class Loja {
+  constructor(nome) {
+    this.nome = nome;
+    this.events = new EventManager(); // composição: a lista mora aqui
+  }
+
+  // Fachada de inscrição: quem quiser ser avisado chama estes dois métodos.
+  inscrever(evento, assinante) {
+    this.events.subscribe(evento, assinante);
+  }
+  cancelarInscricao(evento, assinante) {
+    this.events.unsubscribe(evento, assinante);
+  }
+
+  // --- A LÓGICA DE NEGÓCIO DA LOJA ---------------------------------------
+  // Cada ação importante termina em um notify(). É só isso que a
+  // publicadora precisa fazer.
+
+  novoProduto(produto) {
+    return this.events.notify("chegou-produto", produto);
+  }
+  lancarPromocao(produto) {
+    return this.events.notify("promocao", produto);
+  }
+  estoqueAcabando(produto) {
+    return this.events.notify("estoque-acabando", produto);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   3) Assinante — a INTERFACE (em JS, uma classe base abstrata).
+      Este é o contrato que desacopla tudo: a publicadora conhece apenas
+      este tipo, nunca as classes concretas.
+   ------------------------------------------------------------------------- */
+class Assinante {
+  constructor(nome, id) {
+    this.nome = nome;
+    this.id = id;
+  }
+
+  // Único método obrigatório do padrão. A publicadora chama exatamente este.
+  update(evento, dados) {
+    throw new Error("Todo assinante precisa implementar update(evento, dados)");
+  }
+}
+
+/* -------------------------------------------------------------------------
+   4) ASSINANTES CONCRETOS — mesma interface, reações diferentes.
+      É aqui que o Observer brilha: para somar um comportamento novo ao
+      sistema, basta criar uma classe nova com update(). A Loja não muda.
+   ------------------------------------------------------------------------- */
+class ClienteEmail extends Assinante {
+  update(evento, dados) {
+    // Reação concreta deste assinante: "receber um e-mail".
+    entregar(this, "E-mail recebido — " + ROTULO[evento] + ": " + dados, "boa");
+  }
+}
+
+class PainelLED extends Assinante {
+  update(evento, dados) {
+    // Mesmo contrato (update), reação totalmente diferente.
+    entregar(this, ">>> " + ROTULO[evento].toUpperCase() + ": " + dados + " <<<", "boa");
+  }
+}
+
+class BotWhatsApp extends Assinante {
+  update(evento, dados) {
+    entregar(this, 'Mensagem no grupo: "' + ROTULO[evento] + " — " + dados + '"', "boa");
+  }
+}
+
+/* ==========================================================================
+   ======================  FIM DO PADRÃO / INÍCIO DO JOGO  ==================
+   ========================================================================== */
+
+const EVENTOS = ["chegou-produto", "promocao", "estoque-acabando"];
+const ROTULO = {
+  "chegou-produto": "Chegou produto",
+  "promocao": "Promoção",
+  "estoque-acabando": "Estoque acabando"
+};
+const DADOS_EVENTO = {
+  "chegou-produto": "iPhone 17",
+  "promocao": "iPhone 17 -20%",
+  "estoque-acabando": "iPhone 17"
+};
+const CLASSE_PARTICULA = {
+  "chegou-produto": "",
+  "promocao": "p-promocao",
+  "estoque-acabando": "p-estoque"
+};
+
+const PESSOAS = [
+  { id: "ana",    nome: "Ana",    quer: true,  desejo: "quer o iPhone 17" },
+  { id: "bruno",  nome: "Bruno",  quer: true,  desejo: "quer o iPhone 17" },
+  { id: "carlos", nome: "Carlos", quer: false, desejo: "só queria um cabo USB" },
+  { id: "duda",   nome: "Duda",   quer: false, desejo: "não tem interesse" }
+];
+
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+/* ---------------------- estado do jogo ---------------------- */
+let estado, loja2, loja3, atores, atores3;
+
+function estadoInicial() {
+  return {
+    fase: 1,
+    f1: { viagens: 0, envios: 0, spam: 0, proximo: 0, concluida: false },
+    f2: { preparado: false, confirmado: false, selecionado: null },
+    f3: { led: false, bot: false, concluida: false, digitando: false },
+    f4: { i: 0, acertos: 0, respondida: false, fim: false }
+  };
+}
+
+/* ==========================================================================
+   APRESENTAÇÃO: a função que os update() dos assinantes chamam
+   ========================================================================== */
+function entregar(assinante, texto, tipo) {
+  // Acha o cartão daquele assinante na fase visível e mostra a reação.
+  const cartao = $('.fase.ativa .ator[data-id="' + assinante.id + '"]');
+  if (!cartao) return;
+  cartao.classList.remove("irritado");
+  cartao.classList.add("recebeu");
+  bolha(cartao, texto, tipo || "boa");
+  setTimeout(() => cartao.classList.remove("recebeu"), 2200);
+}
+
+function bolha(cartao, texto, tipo) {
+  const antiga = $(".bolha", cartao);
+  if (antiga) antiga.remove();
+  const b = document.createElement("div");
+  b.className = "bolha " + (tipo || "");
+  b.textContent = texto;
+  cartao.appendChild(b);
+  setTimeout(() => { if (b.parentNode) b.remove(); }, 3600);
+}
+
+/* partícula voando da publicadora até o assinante */
+function voar(de, para, atraso, classe, icone) {
+  if (!de || !para) return;
+  const a = de.getBoundingClientRect();
+  const b = para.getBoundingClientRect();
+  const p = document.createElement("div");
+  p.className = "particula " + (classe || "");
+  p.innerHTML = '<svg viewBox="0 0 24 24"><use href="#' + (icone || "i-mail") + '"/></svg>';
+  document.body.appendChild(p);
+  const x0 = a.left + a.width / 2, y0 = a.top + a.height / 2;
+  const x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;
+  const anim = p.animate([
+    { transform: "translate(" + x0 + "px," + y0 + "px) scale(.3)", opacity: 0 },
+    { transform: "translate(" + ((x0 + x1) / 2) + "px," + (Math.min(y0, y1) - 70) + "px) scale(1.15)", opacity: 1, offset: .5 },
+    { transform: "translate(" + x1 + "px," + y1 + "px) scale(.45)", opacity: 0 }
+  ], { duration: 820, delay: atraso || 0, easing: "cubic-bezier(.4,0,.3,1)" });
+  anim.onfinish = () => p.remove();
+}
+
+function toast(texto, tipo) {
+  const t = document.createElement("div");
+  t.className = "toast " + (tipo || "");
+  t.textContent = texto;
+  $("#toasts").appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+/* ==========================================================================
+   DESTAQUE DE SINTAXE (simples, feito à mão)
+   ========================================================================== */
+const PALAVRAS = /^(class|extends|constructor|new|this|if|else|return|for|of|in|const|let|var|function|throw|super|true|false|null|undefined|delete)$/;
+const METODOS  = /^(update|notify|subscribe|unsubscribe|inscrever|cancelarInscricao|notificar)$/;
+
+function escapar(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function destacar(codigo) {
+  return escapar(codigo).replace(
+    /(\/\/[^\n]*)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b([A-Za-z_$][\w$]*)\b|\b(\d+)\b/g,
+    function (m, com, str, ident, num) {
+      if (com)   return '<span class="c-com">' + com + "</span>";
+      if (str)   return '<span class="c-str">' + str + "</span>";
+      if (num)   return '<span class="c-num">' + num + "</span>";
+      if (ident) {
+        if (PALAVRAS.test(ident)) return '<span class="c-kw">' + ident + "</span>";
+        if (METODOS.test(ident))  return '<span class="c-fn">' + ident + "</span>";
+        if (/^[A-Z]/.test(ident)) return '<span class="c-cls">' + ident + "</span>";
+        return ident;
+      }
+      return m;
+    }
+  );
+}
+
+/* O código mostrado é extraído das classes reais que estão rodando. */
+const FONTES = {
+  "EventManager": () => EventManager.toString(),
+  "Loja": () => Loja.toString(),
+  "Assinante": () => Assinante.toString(),
+  "Assinantes concretos": () => [ClienteEmail, PainelLED, BotWhatsApp].map(c => c.toString()).join("\n\n"),
+  "Como usar": () => $("#src-uso").textContent.trim()
+};
+
+/* ==========================================================================
+   NAVEGAÇÃO ENTRE FASES + BARRA DE PROGRESSO
+   ========================================================================== */
+const FASES = [
+  { n: 1, rot: "O problema" },
+  { n: 2, rot: "Inscrição" },
+  { n: 3, rot: "Aberto/Fechado" },
+  { n: 4, rot: "Quiz da sala" }
+];
+
+function faseLiberada(n) {
+  if (n === 2) return estado.f1.concluida;   // única trava, pedida no enunciado
+  return true;
+}
+function faseFeita(n) {
+  if (n === 1) return estado.f1.concluida;
+  if (n === 2) return estado.f2.confirmado;
+  if (n === 3) return estado.f3.concluida;
+  if (n === 4) return estado.f4.fim;
+  return false;
+}
+
+function renderProgresso() {
+  const el = $("#progresso");
+  el.innerHTML = "";
+  FASES.forEach(f => {
+    const b = document.createElement("button");
+    b.className = "etapa" +
+      (estado.fase === f.n ? " ativa" : "") +
+      (faseFeita(f.n) ? " feita" : "") +
+      (!faseLiberada(f.n) ? " travada" : "");
+    b.innerHTML = '<span class="n">' + f.n + '</span><span class="rot">' + f.rot + "</span>";
+    b.addEventListener("click", () => irPara(f.n));
+    el.appendChild(b);
+  });
+  $("#btnAnt").disabled = estado.fase === 1;
+  $("#btnProx").disabled = estado.fase === 4;
+}
+
+function irPara(n) {
+  n = Math.max(1, Math.min(4, n));
+  if (n === estado.fase) return;
+  if (!faseLiberada(n)) {
+    toast("Fase 2 ainda travada: desperdice 5 viagens e envie 1 spam.", "ruim");
+    return;
+  }
+  estado.fase = n;
+  $$(".fase").forEach(s => s.classList.toggle("ativa", Number(s.dataset.fase) === n));
+  renderProgresso();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (n === 3) prepararF3();
+  if (n === 4) renderQuiz();
+}
+
+/* ==========================================================================
+   FASE 1 — O PROBLEMA (polling x spam)
+   ========================================================================== */
+function renderF1() {
+  const box = $("#clientes1");
+  box.innerHTML = "";
+  PESSOAS.forEach(p => {
+    const d = document.createElement("div");
+    d.className = "ator" + (p.quer ? " quer" : "");
+    d.dataset.id = p.id;
+    d.innerHTML =
+      '<svg class="ic"><use href="#i-pessoa"/></svg>' +
+      '<div class="nome">' + p.nome + "</div>" +
+      '<div class="papel">' + p.desejo + "</div>";
+    box.appendChild(d);
+  });
+  $("#numViagens").textContent = estado.f1.viagens;
+  $("#numSpam").textContent = estado.f1.spam;
+  $("#estoque1").innerHTML = "iPhone 17: <b>ainda não chegou</b>";
+  $("#banner1").hidden = !estado.f1.concluida;
+}
+
+function viagemPerdida() {
+  const p = PESSOAS[estado.f1.proximo % PESSOAS.length];
+  estado.f1.proximo++;
+  const cartao = $('.fase[data-fase="1"] .ator[data-id="' + p.id + '"]');
+  cartao.classList.remove("viajando");
+  void cartao.offsetWidth;            // reinicia a animação
+  cartao.classList.add("viajando");
+  voar(cartao, $("#loja1"), 0, "", "i-pessoa");
+
+  // Na maioria das vezes o produto não chegou. As 5 primeiras viagens
+  // falham sempre, para o jogador sentir o desperdício do polling.
+  const sorte = estado.f1.viagens >= 5 && Math.random() < 0.3;
+  setTimeout(() => {
+    if (sorte) {
+      bolha(cartao, "Hoje deu sorte: o produto chegou!", "boa");
+      $("#estoque1").innerHTML = 'iPhone 17: <b style="color:var(--verde)">chegou (hoje)</b>';
+      toast("Deu sorte — mas foram " + estado.f1.viagens + " viagens perdidas até aqui.");
+    } else {
+      estado.f1.viagens++;
+      bolha(cartao, "Fui até a loja... produto ainda não chegou.", "ruim");
+      $("#numViagens").textContent = estado.f1.viagens;
+      pisca("#placaViagens");
+      if (estado.f1.viagens === 5) toast("5 viagens perdidas. Esse é o custo do polling.", "ruim");
+    }
+    checarF1();
+  }, 480);
+}
+
+function spamParaTodos() {
+  estado.f1.envios++;
+  const loja = $("#loja1");
+  PESSOAS.forEach((p, i) => {
+    const cartao = $('.fase[data-fase="1"] .ator[data-id="' + p.id + '"]');
+    voar(loja, cartao, i * 110, "p-spam", "i-mail");
+    setTimeout(() => {
+      if (p.quer) {
+        cartao.classList.add("recebeu");
+        bolha(cartao, "Era o que eu queria. Mas a loja teve que guardar meu e-mail...", "boa");
+        setTimeout(() => cartao.classList.remove("recebeu"), 2000);
+      } else {
+        cartao.classList.remove("irritado");
+        void cartao.offsetWidth;
+        cartao.classList.add("irritado");
+        bolha(cartao, "De novo esse e-mail? Eu nem quero esse produto!", "ruim");
+        estado.f1.spam++;
+        $("#numSpam").textContent = estado.f1.spam;
+        pisca("#placaSpam");
+      }
+      checarF1();
+    }, i * 110 + 780);
+  });
+  toast("A loja mandou e-mail para 4 pessoas. Só 2 queriam.", "ruim");
+}
+
+function pisca(sel) {
+  const el = $(sel);
+  el.classList.remove("pulsa");
+  void el.offsetWidth;
+  el.classList.add("pulsa");
+}
+
+function checarF1() {
+  const ok = estado.f1.viagens >= 5 && estado.f1.envios >= 1;
+  if (ok && !estado.f1.concluida) {
+    estado.f1.concluida = true;
+    $("#banner1").hidden = false;
+    renderProgresso();
+    toast("Fase 2 liberada.", "boa");
+  }
+}
+
+/* ==========================================================================
+   FASE 2 — O MECANISMO DE ASSINATURA
+   ========================================================================== */
+function montarF2() {
+  // Instancia a publicadora e os assinantes concretos desta fase.
+  loja2 = new Loja("TechStore");
+  atores = {};
+  PESSOAS.forEach(p => { atores[p.id] = new ClienteEmail(p.nome, p.id); });
+
+  const box = $("#clientes2");
+  box.innerHTML = "";
+  PESSOAS.forEach(p => {
+    const d = document.createElement("div");
+    d.className = "ator";
+    d.dataset.id = p.id;
+    d.draggable = true;
+    d.innerHTML =
+      '<div class="topo"><svg class="ic"><use href="#i-pessoa"/></svg>' +
+      '<span class="nome">' + p.nome + "</span>" +
+      '<span class="papel">assinante</span></div>' +
+      '<div class="chips">' + EVENTOS.map(ev =>
+        '<button class="chip" data-ev="' + ev + '">' + ev + "</button>").join("") + "</div>";
+
+    d.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", p.id);
+      e.dataTransfer.effectAllowed = "copy";
+    });
+    d.addEventListener("click", e => {
+      const chip = e.target.closest(".chip");
+      if (chip) { alternar(p.id, chip.dataset.ev); return; }
+      // clique no cartão = selecionar, para depois clicar numa faixa de evento
+      estado.f2.selecionado = (estado.f2.selecionado === p.id) ? null : p.id;
+      $$("#clientes2 .ator").forEach(a => a.classList.toggle("sel", a.dataset.id === estado.f2.selecionado));
+      if (estado.f2.selecionado) toast("Agora clique em um evento do EventManager para inscrever " + p.nome + ".");
+    });
+    box.appendChild(d);
+  });
+
+  const lanes = $("#lanes");
+  lanes.innerHTML = "";
+  EVENTOS.forEach(ev => {
+    const l = document.createElement("div");
+    l.className = "lane";
+    l.dataset.ev = ev;
+    l.innerHTML =
+      '<div class="lane-cab"><span class="ev">"' + ev + '"</span><span class="cont"></span></div>' +
+      '<div class="assinantes"></div>';
+    l.addEventListener("dragover", e => { e.preventDefault(); l.classList.add("over"); });
+    l.addEventListener("dragleave", () => l.classList.remove("over"));
+    l.addEventListener("drop", e => {
+      e.preventDefault();
+      l.classList.remove("over");
+      const id = e.dataTransfer.getData("text/plain");
+      if (id) inscrever(id, ev);
+    });
+    l.addEventListener("click", e => {
+      if (e.target.closest(".x")) return;
+      if (estado.f2.selecionado) {
+        inscrever(estado.f2.selecionado, ev);
+        estado.f2.selecionado = null;
+        $$("#clientes2 .ator").forEach(a => a.classList.remove("sel"));
+      }
+    });
+    lanes.appendChild(l);
+  });
+
+  limparConsole();
+  logLinha("// arraste um cliente para um evento, ou clique nos chips do cartão", "nv");
+  renderF2();
+}
+
+function alternar(id, ev) {
+  const inscrito = loja2.events.assinantesDe(ev).includes(atores[id]);
+  if (inscrito) cancelar(id, ev); else inscrever(id, ev);
+}
+
+function inscrever(id, ev) {
+  const a = atores[id];
+  if (loja2.events.assinantesDe(ev).includes(a)) {
+    toast(a.nome + " já está inscrito em \"" + ev + "\".");
+    return;
+  }
+  loja2.inscrever(ev, a);                      // <<< o padrão em ação
+  logLinha("&gt; loja.inscrever(" + s(ev) + ", " + id + ")", "pr");
+  logLinha("events.subscribe(" + s(ev) + ", " + id + ")   // listeners[" + s(ev) + "].push(" + id + ")", "mt ind");
+  renderF2();
+}
+
+function cancelar(id, ev) {
+  const a = atores[id];
+  loja2.cancelarInscricao(ev, a);              // <<< o padrão em ação
+  logLinha("&gt; loja.cancelarInscricao(" + s(ev) + ", " + id + ")", "pr");
+  logLinha("events.unsubscribe(" + s(ev) + ", " + id + ")   // a lista é dinâmica", "av ind");
+  renderF2();
+}
+
+function s(v) { return '<span class="st">"' + v + '"</span>'; }
+
+function renderF2() {
+  // chips dos cartões
+  $$("#clientes2 .ator").forEach(cartao => {
+    const id = cartao.dataset.id;
+    $$(".chip", cartao).forEach(chip => {
+      const on = loja2.events.assinantesDe(chip.dataset.ev).includes(atores[id]);
+      chip.classList.toggle("on", on);
+    });
+  });
+  // faixas do EventManager
+  $$("#lanes .lane").forEach(l => {
+    const ev = l.dataset.ev;
+    const lista = loja2.events.assinantesDe(ev);
+    $(".cont", l).textContent = lista.length + (lista.length === 1 ? " assinante" : " assinantes");
+    const box = $(".assinantes", l);
+    box.innerHTML = "";
+    if (!lista.length) {
+      box.innerHTML = '<span class="vazio">lista vazia &mdash; ninguém será notificado</span>';
+    } else {
+      lista.forEach(a => {
+        const pill = document.createElement("span");
+        pill.className = "pill";
+        pill.innerHTML = '<svg class="ic" style="width:1em;height:1em;color:var(--azul)"><use href="#i-pessoa"/></svg>' +
+                         "<b>" + a.nome + "</b>" +
+                         '<button class="x">cancelar inscrição</button>';
+        $(".x", pill).addEventListener("click", ev2 => { ev2.stopPropagation(); cancelar(a.id, ev); });
+        box.appendChild(pill);
+      });
+    }
+  });
+  atualizarDesafio();
+}
+
+function disparar(ev) {
+  const dados = DADOS_EVENTO[ev];
+  const nomeMetodo = ev === "chegou-produto" ? "novoProduto"
+                   : ev === "promocao" ? "lancarPromocao" : "estoqueAcabando";
+
+  const lane = $('#lanes .lane[data-ev="' + ev + '"]');
+  lane.classList.remove("disparando"); void lane.offsetWidth; lane.classList.add("disparando");
+
+  logLinha("&gt; loja." + nomeMetodo + "(" + s(dados) + ")", "pr");
+  logLinha("events.<span class=\"mt\">notify</span>(" + s(ev) + ", " + s(dados) + ")", "ind");
+
+  const lista = loja2.events.assinantesDe(ev);
+  if (!lista.length) {
+    logLinha("// listeners[" + s(ev) + "] está vazio: nenhum update() foi chamado", "er ind2");
+    toast("Ninguém assinou \"" + ev + "\" — a notificação não chegou a ninguém.", "ruim");
+  }
+
+  // Anima a notificação saindo da publicadora e chegando SÓ nos inscritos.
+  lista.forEach((a, i) => {
+    const cartao = $('#clientes2 .ator[data-id="' + a.id + '"]');
+    voar($("#loja2"), cartao, i * 130, CLASSE_PARTICULA[ev], "i-mail");
+    logLinha("&rarr; " + a.id + ".<span class=\"mt\">update</span>(" + s(ev) + ", " + s(dados) + ")", "ok ind2");
+  });
+
+  // Só depois da animação os assinantes realmente reagem (notify real).
+  setTimeout(() => {
+    loja2.events.notify(ev, dados);            // <<< NOTIFICAR de verdade
+    if (ev === "promocao") validarDesafio();
+  }, lista.length ? 700 : 0);
+}
+
+/* --------- desafio: só Ana e Bruno recebem a promoção --------- */
+function situacaoDesafio() {
+  const prom = loja2.events.assinantesDe("promocao");
+  return {
+    ana: prom.includes(atores.ana),
+    bruno: prom.includes(atores.bruno),
+    carlos: prom.includes(atores.carlos)
+  };
+}
+function atualizarDesafio() {
+  const st = situacaoDesafio();
+  const pronto = st.ana && st.bruno && !st.carlos;
+  estado.f2.preparado = pronto;
+  const marca = b => b ? '<b style="color:var(--verde)">sim</b>' : '<b style="color:var(--vermelho)">não</b>';
+  $("#statusDesafio").innerHTML =
+    'listeners["promocao"] &rarr; Ana: ' + marca(st.ana) +
+    " &middot; Bruno: " + marca(st.bruno) +
+    " &middot; Carlos: " + (st.carlos ? '<b style="color:var(--vermelho)">inscrito (precisa cancelar)</b>' : '<b style="color:var(--verde)">fora da lista</b>') +
+    (estado.f2.confirmado ? " &mdash; <b style=\"color:var(--verde)\">confirmado</b>"
+      : pronto ? " &mdash; <b>configuração correta: clique em lancarPromocao()</b>" : "");
+  $("#desafio2").classList.toggle("ok", estado.f2.confirmado);
+}
+function validarDesafio() {
+  const st = situacaoDesafio();
+  if (st.ana && st.bruno && !st.carlos) {
+    if (!estado.f2.confirmado) {
+      estado.f2.confirmado = true;
+      $("#banner2").hidden = false;
+      logLinha("// DESAFIO OK: a promoção chegou só a quem se inscreveu", "ok");
+      toast("Desafio concluído.", "boa");
+      renderProgresso();
+    }
+  } else {
+    let msg;
+    if (st.carlos) msg = "O Carlos recebeu: cancele a inscrição dele em \"promocao\".";
+    else msg = "Falta inscrever " + (!st.ana ? "a Ana" : "") + (!st.ana && !st.bruno ? " e " : "") + (!st.bruno ? "o Bruno" : "") + " em \"promocao\".";
+    logLinha("// DESAFIO AINDA NÃO: " + msg, "er");
+    toast(msg, "ruim");
+  }
+  atualizarDesafio();
+}
+
+/* --------- console --------- */
+function logLinha(html, cls) {
+  const c = $("#console2");
+  const d = document.createElement("div");
+  d.className = "ln " + (cls || "");
+  d.innerHTML = html;
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+function limparConsole() { $("#console2").innerHTML = ""; }
+
+/* ==========================================================================
+   FASE 3 — PRINCÍPIO ABERTO/FECHADO
+   ========================================================================== */
+function prepararF3() {
+  if (loja3) return;                           // monta só uma vez
+  loja3 = new Loja("TechStore");
+  atores3 = {
+    ana: new ClienteEmail("Ana", "ana"),
+    bruno: new ClienteEmail("Bruno", "bruno"),
+    led: new PainelLED("Painel de LED", "led"),
+    bot: new BotWhatsApp("Bot do WhatsApp", "bot")
+  };
+  // Os dois clientes de e-mail já existiam no sistema.
+  loja3.inscrever("chegou-produto", atores3.ana);
+  loja3.inscrever("chegou-produto", atores3.bruno);
+  $("#codLoja").innerHTML = destacar(Loja.toString());
+  renderF3();
+}
+
+function renderF3() {
+  const box = $("#assinantes3");
+  const lista = loja3.events.assinantesDe("chegou-produto");
+  const ICONE = { ana: "i-pessoa", bruno: "i-pessoa", led: "i-led", bot: "i-bot" };
+  const CLASSE = { ana: "ClienteEmail", bruno: "ClienteEmail", led: "PainelLED", bot: "BotWhatsApp" };
+  box.innerHTML = "";
+  lista.forEach(a => {
+    const d = document.createElement("div");
+    d.className = "ator" + ((a.id === "led" || a.id === "bot") ? " novo" : "");
+    d.dataset.id = a.id;
+    d.innerHTML =
+      '<svg class="ic"><use href="#' + ICONE[a.id] + '"/></svg>' +
+      '<div class="nome">' + a.nome + "</div>" +
+      '<div class="papel"><span style="font-family:var(--mono)">' + CLASSE[a.id] + "</span></div>";
+    box.appendChild(d);
+  });
+  $("#contaAssinantes3").textContent = lista.length;
+  $("#ofertaLed").querySelector("button").disabled = estado.f3.led;
+  $("#ofertaBot").querySelector("button").disabled = estado.f3.bot;
+  if (estado.f3.led) $("#ofertaLed").querySelector("button").textContent = "já implementa Assinante";
+  if (estado.f3.bot) $("#ofertaBot").querySelector("button").textContent = "já implementa Assinante";
+  $("#banner3").hidden = !estado.f3.concluida;
+}
+
+function implementar(qual) {
+  if (estado.f3.digitando) return;
+  const classe = qual === "led" ? PainelLED : BotWhatsApp;
+  const nome = qual === "led" ? "class PainelLED extends Assinante" : "class BotWhatsApp extends Assinante";
+  $("#tituloNovo").textContent = qual === "led" ? "PainelLED.js — escrito agora" : "BotWhatsApp.js — escrito agora";
+
+  // "escreve" o código do assinante novo na tela, caractere por caractere
+  digitar($("#codNovo"), classe.toString(), () => {
+    estado.f3[qual] = true;
+    loja3.inscrever("chegou-produto", atores3[qual]);   // entra na lista
+    renderF3();
+
+    // A classe Loja não mudou: destaque visual.
+    const pre = $("#codLoja");
+    pre.classList.add("pisca");
+    setTimeout(() => pre.classList.remove("pisca"), 2900);
+    const selo = $("#seloLoja");
+    selo.classList.remove("destaque"); void selo.offsetWidth; selo.classList.add("destaque");
+    $("#seloTxt").textContent = "0 linhas alteradas";
+    toast(nome + " — e a classe Loja: 0 linhas alteradas.", "boa");
+
+    if (estado.f3.led && estado.f3.bot && !estado.f3.concluida) {
+      estado.f3.concluida = true;
+      $("#banner3").hidden = false;
+      renderProgresso();
+    }
+  });
+}
+
+/* Efeito de "código sendo escrito". A quantidade de caracteres vem do tempo
+   decorrido (e não de um contador por quadro): assim a duração é sempre a
+   mesma, mesmo num computador lento ou num projetor com taxa de quadros baixa. */
+function digitar(pre, texto, fim) {
+  estado.f3.digitando = true;
+  const duracao = Math.min(2600, 600 + texto.length * 3);
+  const inicio = performance.now();
+  pre.textContent = "";
+  const passo = () => {
+    const k = Math.min(1, (performance.now() - inicio) / duracao);
+    const i = Math.round(k * texto.length);
+    pre.innerHTML = destacar(texto.slice(0, i)) + (k < 1 ? '<span class="caret"></span>' : "");
+    pre.scrollTop = pre.scrollHeight;
+    if (k < 1) {
+      requestAnimationFrame(passo);
+    } else {
+      estado.f3.digitando = false;
+      if (fim) fim();
+    }
+  };
+  requestAnimationFrame(passo);
+}
+
+function notificarF3() {
+  const lista = loja3.events.assinantesDe("chegou-produto");
+  lista.forEach((a, i) => {
+    voar($("#loja3"), $('#assinantes3 .ator[data-id="' + a.id + '"]'), i * 130, "", "i-mail");
+  });
+  setTimeout(() => loja3.novoProduto("PlayStation 6"), 650);
+  toast("notify(\"chegou-produto\") → " + lista.length + " update() chamados. A Loja não sabe de que classe cada um é.");
+}
+
+/* ==========================================================================
+   FASE 4 — QUIZ DA SALA
+   ========================================================================== */
+const PERGUNTAS = [
+  {
+    p: "Qual problema o padrão Observer resolve?",
+    o: [
+      "O conflito entre o cliente ficar consultando a loja (viagem perdida) e a loja avisar todo mundo (spam) — ou seja, o acoplamento entre quem gera o evento e quem reage a ele",
+      "Deixar o programa mais rápido, porque evita laços de repetição",
+      "Criar objetos sem usar o operador new",
+      "Garantir que exista apenas uma instância da classe Loja"
+    ],
+    c: 0,
+    e: "Sem Observer você escolhe entre dois males: o assinante fica consultando a publicadora (polling — a viagem perdida da Fase 1) ou a publicadora avisa todo mundo (spam, e ainda precisa conhecer cada cliente). O Observer inverte isso: quem tem interesse se inscreve, e a publicadora notifica somente a lista de inscritos."
+  },
+  {
+    p: "No nosso exemplo, quem é a publicadora e quem são os assinantes?",
+    o: [
+      "A Loja é a publicadora; os clientes, o painel de LED e o bot são os assinantes",
+      "Os clientes são as publicadoras, porque são eles que querem a informação",
+      "O EventManager é o assinante e a Loja é o evento",
+      "Todos são publicadoras, porque todos podem emitir eventos"
+    ],
+    c: 0,
+    e: "A publicadora (publisher/subject) é quem gera o evento e mantém a lista de inscritos — aqui a Loja, que delega a lista ao EventManager. Os assinantes (subscribers/observers) são os objetos que reagem ao evento implementando update()."
+  },
+  {
+    p: "Qual método todo assinante é obrigado a implementar?",
+    o: [
+      "update(evento, dados)",
+      "notify(evento, dados)",
+      "subscribe(evento, assinante)",
+      "main()"
+    ],
+    c: 0,
+    e: "update() é o único método do contrato: é exatamente ele que a publicadora chama ao notificar. notify(), subscribe() e unsubscribe() pertencem ao lado da publicadora / EventManager, não ao assinante."
+  },
+  {
+    p: "Por que todos os assinantes implementam a mesma interface?",
+    o: [
+      "Para que a publicadora possa notificar qualquer um deles chamando só update(), sem conhecer as classes concretas — desacoplamento",
+      "Para economizar memória, porque a interface não ocupa espaço",
+      "Porque o JavaScript obriga toda classe a ter uma interface",
+      "Para que os assinantes possam conversar diretamente entre si"
+    ],
+    c: 0,
+    e: "A publicadora depende da abstração Assinante, não de ClienteEmail, PainelLED ou BotWhatsApp. Como todos respondem ao mesmo update(), a Loja consegue percorrer a lista e notificar sem um único if sobre tipos — acoplamento baixo."
+  },
+  {
+    p: "Qual princípio SOLID o Observer favorece diretamente?",
+    o: [
+      "Aberto/Fechado — aberto para extensão, fechado para modificação",
+      "Responsabilidade Única",
+      "Segregação de Interface",
+      "Substituição de Liskov"
+    ],
+    c: 0,
+    e: "Foi o que a Fase 3 mostrou: entraram dois tipos novos de assinante (Painel de LED e Bot do WhatsApp) e a classe Loja teve 0 linhas alteradas. Novas classes de assinante podem ser introduzidas sem mudar o código da publicadora."
+  },
+  {
+    p: "Qual é a principal desvantagem do padrão Observer?",
+    o: [
+      "Os assinantes são notificados em ordem aleatória — o padrão não garante a ordem",
+      "Só funciona se existir exatamente um assinante",
+      "Obriga a publicadora a conhecer o e-mail de cada cliente",
+      "Não permite cancelar a inscrição depois de inscrito"
+    ],
+    c: 0,
+    e: "Essa é a desvantagem citada no Refactoring Guru: assinantes são notificados em ordem aleatória, então nenhum assinante pode depender de ter sido avisado antes ou depois de outro. As alternativas B, C e D descrevem justamente o que o padrão resolve."
+  }
+];
+
+/* As alternativas são embaralhadas: senão a resposta certa cairia sempre
+   na mesma letra e a turma acertaria pelo padrão visual, não pelo conteúdo.
+   A ordem é sorteada uma vez por pergunta e guardada em q.ordem. */
+function ordemDe(q) {
+  if (!q.ordem) {
+    const idx = q.o.map((_, i) => i);
+    for (let j = idx.length - 1; j > 0; j--) {
+      const k = Math.floor(Math.random() * (j + 1));
+      const tmp = idx[j]; idx[j] = idx[k]; idx[k] = tmp;
+    }
+    q.ordem = idx;
+  }
+  return q.ordem;
+}
+function embaralharTudo() { PERGUNTAS.forEach(q => { delete q.ordem; }); }
+
+function renderQuiz() {
+  const q = PERGUNTAS[estado.f4.i];
+  $("#quizWrap").hidden = estado.f4.fim;
+  $("#fimWrap").hidden = !estado.f4.fim;
+  if (estado.f4.fim) { renderFim(); return; }
+
+  estado.f4.respondida = false;
+  $("#qContador").textContent = "Pergunta " + (estado.f4.i + 1) + " de " + PERGUNTAS.length;
+  $("#qPlacar").textContent = "Acertos: " + estado.f4.acertos;
+  $("#qPergunta").textContent = q.p;
+  $("#qExplic").hidden = true;
+  $("#btnProxQ").hidden = true;
+
+  const box = $("#qOpcoes");
+  box.innerHTML = "";
+  // "pos" é a posição na tela; "orig" é o índice da alternativa no array.
+  ordemDe(q).forEach((orig, pos) => {
+    const b = document.createElement("button");
+    b.className = "opc";
+    b.innerHTML = '<span class="letra">' + "ABCD"[pos] + '</span><span class="txt">' + q.o[orig] + "</span>";
+    b.addEventListener("click", () => responder(pos));
+    box.appendChild(b);
+  });
+}
+
+function responder(pos) {
+  if (estado.f4.respondida) return;
+  estado.f4.respondida = true;
+  const q = PERGUNTAS[estado.f4.i];
+  const correta = ordemDe(q).indexOf(q.c);   // onde a certa caiu na tela
+  const certo = pos === correta;
+  if (certo) estado.f4.acertos++;
+
+  $$("#qOpcoes .opc").forEach((b, k) => {
+    b.disabled = true;
+    if (k === correta) b.classList.add("certa");
+    else if (k === pos) b.classList.add("errada");
+    else b.classList.add("apagada");
+  });
+
+  const ex = $("#qExplic");
+  ex.className = "explic " + (certo ? "ok" : "no");
+  ex.innerHTML = "<h4>" + (certo ? "Correto." : "A resposta certa é a " + "ABCD"[correta] + ".") + "</h4><p>" + q.e + "</p>";
+  ex.hidden = false;
+
+  $("#qPlacar").textContent = "Acertos: " + estado.f4.acertos;
+  const b = $("#btnProxQ");
+  b.hidden = false;
+  b.textContent = estado.f4.i === PERGUNTAS.length - 1 ? "Ver o resultado →" : "Próxima pergunta →";
+}
+
+function proximaPergunta() {
+  if (!estado.f4.respondida) { toast("Responda a pergunta para avançar."); return; }
+  if (estado.f4.i === PERGUNTAS.length - 1) {
+    estado.f4.fim = true;
+    renderProgresso();
+  } else {
+    estado.f4.i++;
+  }
+  renderQuiz();
+}
+
+function renderFim() {
+  const a = estado.f4.acertos, t = PERGUNTAS.length;
+  $("#placarBig").textContent = a + "/" + t;
+  const msg = a === t ? "Placar perfeito. A turma está pronta para a pergunta do professor."
+    : a >= 4 ? "Bom resultado. Reveja as explicações das que erraram antes da pergunta do professor."
+    : "Vale rodar o quiz de novo — as explicações ficam logo abaixo de cada resposta.";
+  $("#placarMsg").textContent = msg;
+}
+
+/* ==========================================================================
+   PAINEL "VER O CÓDIGO"
+   ========================================================================== */
+let abaAtual = "EventManager";
+
+function montarAbas() {
+  const box = $("#abasCod");
+  box.innerHTML = "";
+  Object.keys(FONTES).forEach(k => {
+    const b = document.createElement("button");
+    b.className = "aba" + (k === abaAtual ? " on" : "");
+    b.textContent = k;
+    b.addEventListener("click", () => { abaAtual = k; montarAbas(); });
+    box.appendChild(b);
+  });
+  $("#codBox").innerHTML = destacar(FONTES[abaAtual]());
+}
+
+function abrirCodigo(abrir) {
+  const d = $("#painelCodigo");
+  const aberto = abrir === undefined ? !d.classList.contains("aberto") : abrir;
+  d.classList.toggle("aberto", aberto);
+  d.setAttribute("aria-hidden", String(!aberto));
+  $("#backdrop").classList.toggle("on", aberto);
+  if (aberto) montarAbas();
+}
+
+/* ==========================================================================
+   REINICIAR + LIGAÇÕES DE EVENTOS + TECLADO
+   ========================================================================== */
+function reiniciar(manterFase) {
+  estado = estadoInicial();
+  loja3 = null;
+  embaralharTudo();
+  $("#codNovo").innerHTML = '<span class="muted">Clique em "implementar interface Assinante" abaixo e o código aparece aqui, sendo escrito.</span>';
+  $("#tituloNovo").textContent = "novo assinante concreto";
+  $("#banner1").hidden = true;
+  $("#banner2").hidden = true;
+  $("#banner3").hidden = true;
+  renderF1();
+  montarF2();
+  $$(".fase").forEach(s => s.classList.toggle("ativa", Number(s.dataset.fase) === 1));
+  renderProgresso();
+  renderQuiz();
+  if (!manterFase) window.scrollTo({ top: 0, behavior: "smooth" });
+  toast("Jogo reiniciado.");
+}
+
+function ligar() {
+  // fase 1
+  $("#btnViagem").addEventListener("click", viagemPerdida);
+  $("#btnEmailTodos").addEventListener("click", spamParaTodos);
+  $("#btnIrF2").addEventListener("click", () => irPara(2));
+  // fase 2
+  $$("[data-notify]").forEach(b => b.addEventListener("click", () => disparar(b.dataset.notify)));
+  $("#btnLimparConsole").addEventListener("click", limparConsole);
+  $("#btnIrF3").addEventListener("click", () => irPara(3));
+  // fase 3
+  $$("[data-implementa]").forEach(b => b.addEventListener("click", () => implementar(b.dataset.implementa)));
+  $("#btnNotificarF3").addEventListener("click", notificarF3);
+  $("#btnIrF4").addEventListener("click", () => irPara(4));
+  // fase 4
+  $("#btnProxQ").addEventListener("click", proximaPergunta);
+  $("#btnJogarDeNovo").addEventListener("click", () => reiniciar(false));
+  $("#btnRefazerQuiz").addEventListener("click", () => {
+    estado.f4 = { i: 0, acertos: 0, respondida: false, fim: false };
+    embaralharTudo();
+    renderQuiz(); renderProgresso();
+  });
+  // navegação
+  $("#btnAnt").addEventListener("click", () => irPara(estado.fase - 1));
+  $("#btnProx").addEventListener("click", () => irPara(estado.fase + 1));
+  $("#btnReiniciar").addEventListener("click", () => reiniciar(false));
+  // painel de código
+  $("#btnCodigo").addEventListener("click", () => abrirCodigo());
+  $("#btnFecharCod").addEventListener("click", () => abrirCodigo(false));
+  $("#backdrop").addEventListener("click", () => abrirCodigo(false));
+
+  // TECLADO — essencial para apresentar sem procurar o mouse
+  window.addEventListener("keydown", e => {
+    if (e.key === "Escape") { abrirCodigo(false); return; }
+    if (e.key === "ArrowRight") {
+      // na fase 4, a seta direita avança a pergunta
+      if (estado.fase === 4 && !estado.f4.fim) { proximaPergunta(); return; }
+      irPara(estado.fase + 1); return;
+    }
+    if (e.key === "ArrowLeft") { irPara(estado.fase - 1); return; }
+    if (estado.fase === 4 && !estado.f4.fim && /^[1-4]$/.test(e.key)) {
+      const b = $$("#qOpcoes .opc")[Number(e.key) - 1];
+      if (b) b.click();
+      return;
+    }
+    if (e.key === "c" || e.key === "C") { abrirCodigo(); return; }
+    if (e.key === "r" || e.key === "R") { reiniciar(false); return; }
+  });
+}
+
+/* ---------------------------- start ---------------------------- */
+estado = estadoInicial();
+renderF1();
+montarF2();
+renderProgresso();
+renderQuiz();
+ligar();
+</script>
+</body>
+</html>
